@@ -1,0 +1,6 @@
+# Step 0/1 only. Add per-arm deps as the arms land.
+anthropic>=0.40
+psycopg[binary]>=3.2
+python-dotenv>=1.0
+tqdm>=4.66
+pytest>=8.0

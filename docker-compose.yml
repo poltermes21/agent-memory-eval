@@ -1,0 +1,30 @@
+# Part of the deliverable: `docker compose up -d` must be the whole setup story.
+#
+# Present: Postgres 16 + pgvector — raw_turns (all arms), facts (Arm C),
+# embeddings (Arm B). One instance, one database, one shared schema.
+#
+# Not yet present: two Neo4j 5 Community containers (Arm D on 7474/7687,
+# Graphiti on 7475/7688, separate volumes, ~512MB heap each). Added at
+# steps 5 and 6 respectively — see CLAUDE.md "Order of work".
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: memeval-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-memeval}
+      POSTGRES_USER: ${POSTGRES_USER:-memeval}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-memeval}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-memeval} -d ${POSTGRES_DB:-memeval}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
