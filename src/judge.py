@@ -13,16 +13,21 @@ LoCoMo evaluation over-credits answers that are close in topic but wrong in
 detail." Running both judges over the same answers, then comparing both
 against hand-labeled ground truth, is the validation CLAUDE.md calls for.
 
-Results cache to runs/judge/<conversation_id>.json, mirroring runs/arm_a/, so
-re-runs don't re-pay for verdicts already computed.
+Results cache to runs/judge/arm_a/<conversation_id>.json for Arm A, and
+runs/judge/arm_b/<granularity>/k<N>/<conversation_id>.json for Arm B,
+mirroring each arm's own answer cache, so re-runs don't re-pay for verdicts
+already computed. Works against any arm's cache as long as it has the same
+{question, category, system_answer} shape (arm_a.py and arm_b.py both do).
 """
 import argparse
 import json
+from pathlib import Path
 
 from anthropic import Anthropic
 
 from src.config import (
     ANTHROPIC_API_KEY,
+    ARM_B_TOP_K,
     JUDGE_MODEL,
     JUDGE_MODEL_INPUT_PRICE_PER_M,
     JUDGE_MODEL_OUTPUT_PRICE_PER_M,
@@ -30,8 +35,17 @@ from src.config import (
     SAMPLE_CONVERSATIONS,
 )
 
-ARM_A_DIR = RUNS_DIR / "arm_a"
-JUDGE_DIR = RUNS_DIR / "judge"
+
+def get_answers_dir(arm: str, granularity: str | None, top_k: int | None) -> Path:
+    if arm == "arm_a":
+        return RUNS_DIR / "arm_a"
+    return RUNS_DIR / "arm_b" / granularity / f"k{top_k or ARM_B_TOP_K}"
+
+
+def get_judge_dir(arm: str, granularity: str | None, top_k: int | None) -> Path:
+    if arm == "arm_a":
+        return RUNS_DIR / "judge" / "arm_a"
+    return RUNS_DIR / "judge" / "arm_b" / granularity / f"k{top_k or ARM_B_TOP_K}"
 
 # Safety net, not a tight budget target -- runaway-cost guard in case a case needs
 # far more reasoning than expected. Stops cleanly (partial results already saved
@@ -94,16 +108,16 @@ def call_judge(client: Anthropic, system_prompt: str, case: str) -> dict:
     }
 
 
-def load_judge_cache(conversation_id: str) -> dict:
-    path = JUDGE_DIR / f"{conversation_id}.json"
+def load_judge_cache(judge_dir: Path, conversation_id: str) -> dict:
+    path = judge_dir / f"{conversation_id}.json"
     if path.exists():
         return json.loads(path.read_text())
     return {}
 
 
-def save_judge_cache(conversation_id: str, cache: dict) -> None:
-    JUDGE_DIR.mkdir(parents=True, exist_ok=True)
-    (JUDGE_DIR / f"{conversation_id}.json").write_text(json.dumps(cache, indent=2))
+def save_judge_cache(judge_dir: Path, conversation_id: str, cache: dict) -> None:
+    judge_dir.mkdir(parents=True, exist_ok=True)
+    (judge_dir / f"{conversation_id}.json").write_text(json.dumps(cache, indent=2))
 
 
 def get_expected_answers(conn, conversation_id: str) -> dict:
@@ -120,13 +134,13 @@ def _spend(input_tokens: int, output_tokens: int) -> float:
     ) * JUDGE_MODEL_OUTPUT_PRICE_PER_M
 
 
-def run_conversation(conn, client: Anthropic, conversation_id: str, spend_so_far: float) -> float:
-    arm_a_cache = json.loads((ARM_A_DIR / f"{conversation_id}.json").read_text())
+def run_conversation(conn, client: Anthropic, answers_dir: Path, judge_dir: Path, conversation_id: str, spend_so_far: float) -> float:
+    answers_cache = json.loads((answers_dir / f"{conversation_id}.json").read_text())
     expected_answers = get_expected_answers(conn, conversation_id)
-    judge_cache = load_judge_cache(conversation_id)
+    judge_cache = load_judge_cache(judge_dir, conversation_id)
 
     new_calls = 0
-    for qa_id, entry in arm_a_cache.items():
+    for qa_id, entry in answers_cache.items():
         if qa_id in judge_cache:
             continue
         if spend_so_far >= MAX_JUDGE_SPEND_USD:
@@ -152,7 +166,7 @@ def run_conversation(conn, client: Anthropic, conversation_id: str, spend_so_far
             "output_tokens": call_output,
         }
         new_calls += 1
-        save_judge_cache(conversation_id, judge_cache)  # save after every question, not just at the end
+        save_judge_cache(judge_dir, conversation_id, judge_cache)  # save after every question, not just at the end
 
     print(f"{conversation_id}: {len(judge_cache)} judged ({new_calls} new this run), cumulative spend ${spend_so_far:.4f}")
     return spend_so_far
@@ -162,8 +176,17 @@ def main() -> None:
     from src.db import get_connection
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--arm", choices=("arm_a", "arm_b"), default="arm_a")
+    parser.add_argument("--granularity", choices=("turn", "session", "window"), help="required if --arm arm_b")
+    parser.add_argument("--top-k", type=int, help="Arm B only; default: ARM_B_TOP_K")
     parser.add_argument("--conversation", help="restrict to one conversation_id; default: SAMPLE_CONVERSATIONS")
     args = parser.parse_args()
+
+    if args.arm == "arm_b" and not args.granularity:
+        parser.error("--granularity is required when --arm arm_b")
+
+    answers_dir = get_answers_dir(args.arm, args.granularity, args.top_k)
+    judge_dir = get_judge_dir(args.arm, args.granularity, args.top_k)
 
     conn = get_connection()
     client = Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -171,7 +194,7 @@ def main() -> None:
     conversation_ids = [args.conversation] if args.conversation else SAMPLE_CONVERSATIONS
     spend = 0.0
     for conversation_id in conversation_ids:
-        spend = run_conversation(conn, client, conversation_id, spend)
+        spend = run_conversation(conn, client, answers_dir, judge_dir, conversation_id, spend)
 
     conn.close()
 

@@ -44,15 +44,15 @@ def load_sample(conn: psycopg.Connection, sample: dict) -> tuple[int, int]:
         date_key = f"session_{n}_date_time"
         session_date = parse_session_date(conv[date_key])
         session_id = f"{conversation_id}:session_{n}"
-        for turn in conv[session_key]:
+        for turn_index, turn in enumerate(conv[session_key], start=1):
             turn_id = f"{conversation_id}:{turn['dia_id']}"
-            turn_rows.append((turn_id, conversation_id, session_id, session_date, turn["speaker"], turn["text"]))
+            turn_rows.append((turn_id, conversation_id, session_id, session_date, turn_index, turn["speaker"], turn["text"]))
 
     with conn.cursor() as cur:
         cur.executemany(
             """
-            INSERT INTO raw_turns (turn_id, conversation_id, session_id, session_date, speaker, text)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO raw_turns (turn_id, conversation_id, session_id, session_date, turn_index, speaker, text)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (turn_id) DO NOTHING
             """,
             turn_rows,

@@ -1,6 +1,9 @@
-# Step 0/1 only. Add per-arm deps as the arms land.
+# Step 0/1: anthropic, psycopg, dotenv, tqdm, pytest.
+# Step 3 (Arm B): openai (embeddings). Vector normalization is done in plain
+# Python (single 1536-dim vector, trivial computation) -- no numpy needed.
 anthropic>=0.40
 psycopg[binary]>=3.2
 python-dotenv>=1.0
 tqdm>=4.66
 pytest>=8.0
+openai>=1.40

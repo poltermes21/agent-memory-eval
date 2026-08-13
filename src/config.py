@@ -16,6 +16,10 @@ ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 ANSWERING_MODEL = os.environ["ANSWERING_MODEL"]
 JUDGE_MODEL = os.environ["JUDGE_MODEL"]
 
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+EMBEDDING_MODEL = os.environ["EMBEDDING_MODEL"]
+EMBEDDING_DIMENSIONS = 1536  # text-embedding-3-small
+
 POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "localhost")
 POSTGRES_PORT = os.environ.get("POSTGRES_PORT", "5432")
 POSTGRES_DB = os.environ.get("POSTGRES_DB", "memeval")
@@ -43,3 +47,12 @@ ANSWERING_MODEL_OUTPUT_PRICE_PER_M = 10.00
 # claude-opus-5 pricing, USD per million tokens. Update if JUDGE_MODEL ever changes.
 JUDGE_MODEL_INPUT_PRICE_PER_M = 5.00
 JUDGE_MODEL_OUTPUT_PRICE_PER_M = 25.00
+
+# text-embedding-3-small pricing, USD per million tokens. Update if EMBEDDING_MODEL
+# ever changes.
+EMBEDDING_MODEL_PRICE_PER_M = 0.02
+
+# Arm B retrieval design choice: top-k chunks per query. CLAUDE.md doesn't fix this
+# number -- it's ours to set and keep constant across both chunk granularities so
+# the comparison between them isn't confounded by a differing k.
+ARM_B_TOP_K = 5

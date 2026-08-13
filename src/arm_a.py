@@ -47,7 +47,7 @@ def build_transcript(conn, conversation_id: str) -> str:
         SELECT session_id, session_date, speaker, text
         FROM raw_turns
         WHERE conversation_id = %s
-        ORDER BY session_id, turn_id
+        ORDER BY session_id, turn_index
         """,
         (conversation_id,),
     ).fetchall()
