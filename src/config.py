@@ -56,3 +56,13 @@ EMBEDDING_MODEL_PRICE_PER_M = 0.02
 # number -- it's ours to set and keep constant across both chunk granularities so
 # the comparison between them isn't confounded by a differing k.
 ARM_B_TOP_K = 5
+
+# Arm C: same retrieval mechanism as Arm B (exact cosine, top-k, no ANN index) but
+# over extracted fact sentences instead of raw text chunks. Deliberate deviation
+# from CLAUDE.md, which specifies full-text/text-to-SQL for Arm C: measured on this
+# data, Postgres ts_rank has no IDF weighting, so a common subject name ("calvin",
+# in 225 of 403 facts) outranks the rare informative terms -- Arm C would have lost
+# on ranking-implementation weakness rather than on architecture. Keeping retrieval
+# identical to Arm B isolates the one variable that matters for production:
+# distilled facts vs raw chunks (the Mem0-vs-classic-RAG fork).
+ARM_C_TOP_K = 10

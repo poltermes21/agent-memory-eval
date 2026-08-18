@@ -26,6 +26,7 @@ from anthropic import Anthropic
 from openai import OpenAI
 
 from src.arm_a import ANSWER_STYLE_REMINDER, SYSTEM_PROMPT
+from src.cache_io import load_json_cache, save_json_cache
 from src.config import (
     ANSWERING_MODEL,
     ANTHROPIC_API_KEY,
@@ -94,16 +95,11 @@ def cache_dir(granularity: str, top_k: int):
 
 
 def load_cache(granularity: str, top_k: int, conversation_id: str) -> dict:
-    path = cache_dir(granularity, top_k) / f"{conversation_id}.json"
-    if path.exists():
-        return json.loads(path.read_text())
-    return {}
+    return load_json_cache(cache_dir(granularity, top_k) / f"{conversation_id}.json")
 
 
 def save_cache(granularity: str, top_k: int, conversation_id: str, cache: dict) -> None:
-    path = cache_dir(granularity, top_k) / f"{conversation_id}.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cache, indent=2))
+    save_json_cache(cache_dir(granularity, top_k) / f"{conversation_id}.json", cache)
 
 
 def run_question(conn, anthropic_client, openai_client, conversation_id, granularity, top_k, qa_id, question, category, evidence):

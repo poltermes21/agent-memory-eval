@@ -12,6 +12,7 @@ import json
 
 from anthropic import Anthropic
 
+from src.cache_io import load_json_cache, save_json_cache
 from src.config import ADVERSARIAL_CATEGORY, ANSWERING_MODEL, ANTHROPIC_API_KEY, RUNS_DIR
 from src.db import get_connection
 
@@ -73,16 +74,11 @@ def fetch_questions(conn, conversation_id: str, include_adversarial: bool):
 
 
 def load_cache(conversation_id: str) -> dict:
-    path = ARM_A_DIR / f"{conversation_id}.json"
-    if path.exists():
-        return json.loads(path.read_text())
-    return {}
+    return load_json_cache(ARM_A_DIR / f"{conversation_id}.json")
 
 
 def save_cache(conversation_id: str, cache: dict) -> None:
-    ARM_A_DIR.mkdir(parents=True, exist_ok=True)
-    path = ARM_A_DIR / f"{conversation_id}.json"
-    path.write_text(json.dumps(cache, indent=2))
+    save_json_cache(ARM_A_DIR / f"{conversation_id}.json", cache)
 
 
 def run_questions(conn, client: Anthropic, conversation_id: str, questions) -> None:

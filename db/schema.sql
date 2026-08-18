@@ -75,3 +75,49 @@ CREATE TABLE IF NOT EXISTS embeddings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_embeddings_conversation ON embeddings (conversation_id, granularity);
+
+-- Shared extraction step (CLAUDE.md "Why extraction is shared"): Arms C and D both
+-- read from this table, unmodified per-arm, so any accuracy difference between them
+-- is attributable to retrieval architecture, not to running extraction twice.
+--
+-- fact_key is the idempotency key CLAUDE.md asks for: a hash of (normalised
+-- subject, predicate, object, source_turn_id). Re-running extraction never
+-- duplicates a row, same ON CONFLICT DO NOTHING pattern as the rest of this schema.
+--
+-- Both the triple (subject/predicate/object, for finding) and the sentence (fact,
+-- for answering -- keeps hedging/conditionals the triple would discard) are stored,
+-- per CLAUDE.md's "Store both the triple and the sentence".
+--
+-- Entity resolution is Level 1 only for now (lowercase + trim normalisation,
+-- computed into fact_key, not into subject/object -- the display text keeps its
+-- original casing): CLAUDE.md's guidance is to start simple and escalate only if
+-- Arm C's own recall shows entity fragmentation is hurting retrieval.
+CREATE TABLE IF NOT EXISTS facts (
+    fact_key        TEXT PRIMARY KEY,       -- sha256(lower(subject)|lower(predicate)|lower(object)|source_turn_id)
+    conversation_id TEXT NOT NULL,
+    subject         TEXT NOT NULL,
+    predicate       TEXT NOT NULL,
+    object          TEXT NOT NULL,
+    fact            TEXT NOT NULL,          -- the full sentence, tone/hedging preserved
+    source_turn_id  TEXT NOT NULL,
+    session_date    TEXT NOT NULL,          -- ISO-8601 session timestamp (inherited from raw_turns)
+    valid_from      TEXT,                   -- ISO-8601 date, resolved from relative references at extraction time; NULL if undated
+    valid_to        TEXT,                   -- NULL until a later contradicting fact invalidates this one (Arm D)
+    ingested_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_facts_conversation ON facts (conversation_id);
+CREATE INDEX IF NOT EXISTS idx_facts_subject ON facts (conversation_id, lower(subject));
+
+-- Arm C retrieval index: one embedding per fact, so retrieval is the same exact
+-- cosine top-k as Arm B (no ANN index here either) with the stored unit swapped
+-- from raw text chunk to distilled fact. Separate table rather than a column on
+-- facts so the extraction step stays independent of whether an arm embeds it --
+-- Arm D reads the same facts table and needs no embeddings.
+CREATE TABLE IF NOT EXISTS fact_embeddings (
+    fact_key        TEXT PRIMARY KEY REFERENCES facts (fact_key) ON DELETE CASCADE,
+    conversation_id TEXT NOT NULL,
+    embedding       VECTOR(1536) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_fact_embeddings_conversation ON fact_embeddings (conversation_id);

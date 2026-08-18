@@ -25,6 +25,7 @@ from pathlib import Path
 
 from anthropic import Anthropic
 
+from src.cache_io import load_json_cache, save_json_cache
 from src.config import (
     ANTHROPIC_API_KEY,
     ARM_B_TOP_K,
@@ -39,12 +40,16 @@ from src.config import (
 def get_answers_dir(arm: str, granularity: str | None, top_k: int | None) -> Path:
     if arm == "arm_a":
         return RUNS_DIR / "arm_a"
+    if arm == "arm_c":
+        return RUNS_DIR / "arm_c" / f"k{top_k or ARM_C_TOP_K}"
     return RUNS_DIR / "arm_b" / granularity / f"k{top_k or ARM_B_TOP_K}"
 
 
 def get_judge_dir(arm: str, granularity: str | None, top_k: int | None) -> Path:
     if arm == "arm_a":
         return RUNS_DIR / "judge" / "arm_a"
+    if arm == "arm_c":
+        return RUNS_DIR / "judge" / "arm_c" / f"k{top_k or ARM_C_TOP_K}"
     return RUNS_DIR / "judge" / "arm_b" / granularity / f"k{top_k or ARM_B_TOP_K}"
 
 # Safety net, not a tight budget target -- runaway-cost guard in case a case needs
@@ -109,15 +114,11 @@ def call_judge(client: Anthropic, system_prompt: str, case: str) -> dict:
 
 
 def load_judge_cache(judge_dir: Path, conversation_id: str) -> dict:
-    path = judge_dir / f"{conversation_id}.json"
-    if path.exists():
-        return json.loads(path.read_text())
-    return {}
+    return load_json_cache(judge_dir / f"{conversation_id}.json")
 
 
 def save_judge_cache(judge_dir: Path, conversation_id: str, cache: dict) -> None:
-    judge_dir.mkdir(parents=True, exist_ok=True)
-    (judge_dir / f"{conversation_id}.json").write_text(json.dumps(cache, indent=2))
+    save_json_cache(judge_dir / f"{conversation_id}.json", cache)
 
 
 def get_expected_answers(conn, conversation_id: str) -> dict:
@@ -176,7 +177,7 @@ def main() -> None:
     from src.db import get_connection
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--arm", choices=("arm_a", "arm_b"), default="arm_a")
+    parser.add_argument("--arm", choices=("arm_a", "arm_b", "arm_c"), default="arm_a")
     parser.add_argument("--granularity", choices=("turn", "session", "window"), help="required if --arm arm_b")
     parser.add_argument("--top-k", type=int, help="Arm B only; default: ARM_B_TOP_K")
     parser.add_argument("--conversation", help="restrict to one conversation_id; default: SAMPLE_CONVERSATIONS")
