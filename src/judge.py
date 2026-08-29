@@ -1,34 +1,28 @@
-"""Two frozen judges, per CLAUDE.md: a stateless boolean function, no tools, no
-memory. Input: question, expected answer, system answer. Output: PASS/FAIL.
+"""Two frozen judges: stateless functions, no tools, no memory. Input is
+(question, expected answer, system answer); output is PASS/FAIL.
 
-STRICT_PROMPT is this project's own judge, validated by hand (2026-08-10-11):
-tested against a deliberately borderline case -- a relative-date answer that
-never resolves to the exact expected value -- across Haiku 4.5, Sonnet 5, and
-Opus 5 as candidate judges. Only Opus 5 failed it correctly, hence
-JUDGE_MODEL=claude-opus-5. See project memory for the full comparison.
+STRICT_PROMPT demands the specific detail; ORIGINAL_PROMPT approximates the
+lenient LoCoMo style. Every answer is scored by both; the gap is a reported
+result (docs/RESULTS.md).
 
-ORIGINAL_PROMPT approximates the lenient, topically-focused LLM-as-judge style
-CLAUDE.md's central claim is about: "The LLM-as-judge used by the standard
-LoCoMo evaluation over-credits answers that are close in topic but wrong in
-detail." Running both judges over the same answers, then comparing both
-against hand-labeled ground truth, is the validation CLAUDE.md calls for.
+BOTH PROMPTS ARE FROZEN. Editing one invalidates every cached verdict across all
+arms, with no way to tell stale from fresh. Add a new constant instead.
 
-Results cache to runs/judge/arm_a/<conversation_id>.json for Arm A, and
-runs/judge/arm_b/<granularity>/k<N>/<conversation_id>.json for Arm B,
-mirroring each arm's own answer cache, so re-runs don't re-pay for verdicts
-already computed. Works against any arm's cache as long as it has the same
-{question, category, system_answer} shape (arm_a.py and arm_b.py both do).
+Verdicts cache per arm, mirroring that arm's answer cache.
 """
 import argparse
 import json
+import random
+import time
 from pathlib import Path
 
-from anthropic import Anthropic
+from anthropic import Anthropic, APIStatusError
 
 from src.cache_io import load_json_cache, save_json_cache
 from src.config import (
     ANTHROPIC_API_KEY,
     ARM_B_TOP_K,
+    ARM_C_TOP_K,
     JUDGE_MODEL,
     JUDGE_MODEL_INPUT_PRICE_PER_M,
     JUDGE_MODEL_OUTPUT_PRICE_PER_M,
@@ -37,24 +31,28 @@ from src.config import (
 )
 
 
-def get_answers_dir(arm: str, granularity: str | None, top_k: int | None) -> Path:
+def get_answers_dir(arm: str, granularity: str | None, top_k: int | None, hydrate: int = 0) -> Path:
     if arm == "arm_a":
         return RUNS_DIR / "arm_a"
     if arm == "arm_c":
         return RUNS_DIR / "arm_c" / f"k{top_k or ARM_C_TOP_K}"
+    if arm == "arm_d":
+        # Arm D's budget is three caps, not one top-k, so there is no k<N> level.
+        return RUNS_DIR / (f"arm_d_hydrated_{hydrate}" if hydrate else "arm_d")
     return RUNS_DIR / "arm_b" / granularity / f"k{top_k or ARM_B_TOP_K}"
 
 
-def get_judge_dir(arm: str, granularity: str | None, top_k: int | None) -> Path:
+def get_judge_dir(arm: str, granularity: str | None, top_k: int | None, hydrate: int = 0) -> Path:
     if arm == "arm_a":
         return RUNS_DIR / "judge" / "arm_a"
     if arm == "arm_c":
         return RUNS_DIR / "judge" / "arm_c" / f"k{top_k or ARM_C_TOP_K}"
+    if arm == "arm_d":
+        return RUNS_DIR / "judge" / (f"arm_d_hydrated_{hydrate}" if hydrate else "arm_d")
     return RUNS_DIR / "judge" / "arm_b" / granularity / f"k{top_k or ARM_B_TOP_K}"
 
-# Safety net, not a tight budget target -- runaway-cost guard in case a case needs
-# far more reasoning than expected. Stops cleanly (partial results already saved
-# incrementally) rather than silently spending past this.
+# Runaway-cost guard, not a budget target. Stops cleanly; partial results are
+# already saved.
 MAX_JUDGE_SPEND_USD = 1.50
 
 STRICT_PROMPT = (
@@ -91,19 +89,35 @@ def build_case(question: str, expected: str, system_answer: str) -> str:
     return f"QUESTION: {question}\nEXPECTED ANSWER: {expected}\nSYSTEM ANSWER: {system_answer}"
 
 
+# The SDK's own 2 retries are not enough for a sustained 529; 8 attempts capped
+# at 120s spans ~4 minutes of outage.
+JUDGE_MAX_ATTEMPTS = 8
+
+
+def _create_with_backoff(client: Anthropic, system_prompt: str, case: str):
+    for attempt in range(JUDGE_MAX_ATTEMPTS):
+        try:
+            return client.messages.create(
+                model=JUDGE_MODEL,
+                max_tokens=500,
+                system=system_prompt,
+                messages=[{"role": "user", "content": case}],
+            )
+        except APIStatusError as exc:
+            retriable = exc.status_code in (429, 500, 502, 503, 529)
+            if not retriable or attempt == JUDGE_MAX_ATTEMPTS - 1:
+                raise
+            delay = min(120, 2**attempt) + random.uniform(0, 1)
+            print(f"  {exc.status_code} from judge, retrying in {delay:.1f}s "
+                  f"(attempt {attempt + 1}/{JUDGE_MAX_ATTEMPTS})")
+            time.sleep(delay)
+
+
 def call_judge(client: Anthropic, system_prompt: str, case: str) -> dict:
-    # claude-opus-5 has thinking on by default (adaptive) -- max_tokens must cover
-    # thinking + the final word, or the response is cut off with no text block at
-    # all. Do NOT set effort=low: tested against the known borderline case
-    # (conv-30:qa:0) it gave the wrong verdict (PASS instead of FAIL) -- default
-    # effort (high) gave the correct FAIL. Cost scales with case difficulty via
-    # adaptive thinking: ~10 output tokens on an easy case, ~370 on a hard one.
-    response = client.messages.create(
-        model=JUDGE_MODEL,
-        max_tokens=500,
-        system=system_prompt,
-        messages=[{"role": "user", "content": case}],
-    )
+    # max_tokens must cover adaptive thinking plus the verdict word, or the
+    # response arrives with no text block. Do NOT set effort=low: it flips
+    # borderline cases to the wrong verdict.
+    response = _create_with_backoff(client, system_prompt, case)
     text = next(block.text for block in response.content if block.type == "text").strip().upper()
     verdict = "PASS" if "PASS" in text else "FAIL"
     return {
@@ -177,17 +191,18 @@ def main() -> None:
     from src.db import get_connection
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--arm", choices=("arm_a", "arm_b", "arm_c"), default="arm_a")
+    parser.add_argument("--arm", choices=("arm_a", "arm_b", "arm_c", "arm_d"), default="arm_a")
     parser.add_argument("--granularity", choices=("turn", "session", "window"), help="required if --arm arm_b")
-    parser.add_argument("--top-k", type=int, help="Arm B only; default: ARM_B_TOP_K")
+    parser.add_argument("--top-k", type=int, help="Arm B/C only; default: ARM_B_TOP_K / ARM_C_TOP_K")
+    parser.add_argument("--hydrate", type=int, default=0, help="Arm D only; judge the --hydrate N ablation cache instead of the frozen config")
     parser.add_argument("--conversation", help="restrict to one conversation_id; default: SAMPLE_CONVERSATIONS")
     args = parser.parse_args()
 
     if args.arm == "arm_b" and not args.granularity:
         parser.error("--granularity is required when --arm arm_b")
 
-    answers_dir = get_answers_dir(args.arm, args.granularity, args.top_k)
-    judge_dir = get_judge_dir(args.arm, args.granularity, args.top_k)
+    answers_dir = get_answers_dir(args.arm, args.granularity, args.top_k, args.hydrate)
+    judge_dir = get_judge_dir(args.arm, args.granularity, args.top_k, args.hydrate)
 
     conn = get_connection()
     client = Anthropic(api_key=ANTHROPIC_API_KEY)

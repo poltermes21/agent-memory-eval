@@ -1,11 +1,8 @@
-# Part of the deliverable: `docker compose up -d` must be the whole setup story.
+# `docker compose up -d` is the whole setup story.
 #
-# Present: Postgres 16 + pgvector — raw_turns (all arms), facts (Arm C),
-# embeddings (Arm B). One instance, one database, one shared schema.
-#
-# Not yet present: two Neo4j 5 Community containers (Arm D on 7474/7687,
-# Graphiti on 7475/7688, separate volumes, ~512MB heap each). Added at
-# steps 5 and 6 respectively — see CLAUDE.md "Order of work".
+# Postgres: one instance, one database, one shared schema for every arm.
+# Neo4j: one container, for Arm D. A second graph system would need its own
+# container -- Neo4j Community allows only one user database per instance.
 
 services:
   postgres:
@@ -26,5 +23,26 @@ services:
       timeout: 5s
       retries: 10
 
+  neo4j-armd:
+    image: neo4j:5-community
+    container_name: memeval-neo4j-armd
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: ${NEO4J_ARMD_USER:-neo4j}/${NEO4J_ARMD_PASSWORD:-memevalgraph}
+      # Thousands of nodes, not millions.
+      NEO4J_server_memory_heap_max__size: 512M
+      NEO4J_server_memory_heap_initial__size: 512M
+    ports:
+      - "${NEO4J_ARMD_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_ARMD_BOLT_PORT:-7687}:7687"
+    volumes:
+      - neo4j_armd_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
 volumes:
   pgdata:
+  neo4j_armd_data:
