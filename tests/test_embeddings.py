@@ -6,7 +6,7 @@ mysteriously across arms.
 """
 import math
 
-from src.embed import normalize
+from src.ingest.chunks import normalize
 
 
 def test_normalize_produces_unit_norm():

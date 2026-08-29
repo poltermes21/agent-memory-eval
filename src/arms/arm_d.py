@@ -1,5 +1,5 @@
-"""Arm D -- RAG over a temporal knowledge graph, built by src/build_graph.py from
-Arm D's own extraction (src/extract_graph_facts.py).
+"""Arm D -- RAG over a temporal knowledge graph, built by src/ingest/graph.py from
+Arm D's own extraction (src/ingest/graph_facts.py).
 
 Retrieval: vector seed -> per-entity coverage -> 1 Cypher hop. Traversal must
 stay gated by ARM_D_HUB_DEGREE; the graph is a star, and expanding a hub returns
@@ -17,8 +17,8 @@ import time
 from anthropic import Anthropic
 from openai import OpenAI
 
-from src.arm_a import ANSWER_STYLE_REMINDER, SYSTEM_PROMPT
-from src.arm_b import embed_query, vector_literal
+from src.arms.arm_a import ANSWER_STYLE_REMINDER, SYSTEM_PROMPT
+from src.arms.arm_b import embed_query, vector_literal
 from src.cache_io import load_json_cache, save_json_cache
 from src.config import (
     ANSWERING_MODEL,
@@ -33,9 +33,9 @@ from src.config import (
     SAMPLE_CONVERSATIONS,
 )
 from src.db import get_connection
-from src.embed import EMBED_BATCH_SIZE, embed_batch, normalize
+from src.ingest.chunks import EMBED_BATCH_SIZE, embed_batch, normalize
 from src.graph_db import get_driver
-from src.run_sample import select_stratified_sample
+from src.dataset.sample import select_stratified_sample
 
 ARM_D_DIR = RUNS_DIR / "arm_d"
 

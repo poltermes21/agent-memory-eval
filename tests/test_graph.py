@@ -5,7 +5,7 @@ most of its coverage. normalize_predicate() is lowercase+trim only -- predicates
 are lemmatized at extraction time -- so what matters here is that
 INVALIDATING_PREDICATES entries survive it and the invalidation logic is right.
 """
-from src.build_graph import INVALIDATING_PREDICATES, compute_invalidations, normalize_predicate
+from src.ingest.graph import INVALIDATING_PREDICATES, compute_invalidations, normalize_predicate
 
 
 def test_normalize_predicate_is_lowercase_trim_only():

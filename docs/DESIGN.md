@@ -107,14 +107,14 @@ have broken") expects both the old and the new Prius, so an arm that dropped sup
 at retrieval time would answer it wrong.
 
 This path fires only 3 times on LoCoMo, so it is covered by unit tests
-(`tests/test_build_graph.py`) rather than being exercised by the run itself.
+(`tests/test_graph.py`) rather than being exercised by the run itself.
 
 ---
 
 ## Rejected retrieval strategies
 
 Retrieval recall needs **no answering model and no judge** — it only asks whether the retrieved
-set covers the dataset's evidence turns. So alternatives were swept in `src/recall_sweep.py`
+set covers the dataset's evidence turns. So alternatives were swept in `src/evaluate/recall_sweep.py`
 for roughly $0.00002 each, and only a strategy that actually moved recall would have been worth
 paying to answer and judge.
 

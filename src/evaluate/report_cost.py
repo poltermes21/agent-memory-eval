@@ -1,7 +1,7 @@
 """Arm A token and cost breakdown, from the runs/arm_a/ cache.
 
 Reports totals, per-conversation and per-category rather than one global
-figure. For the cross-arm view, use src/report_results.py.
+figure. For the cross-arm view, use src/evaluate/report_results.py.
 """
 import argparse
 import json

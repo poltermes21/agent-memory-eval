@@ -11,7 +11,7 @@ from openai import OpenAI
 
 from src.config import EMBEDDING_MODEL, EMBEDDING_MODEL_PRICE_PER_M, OPENAI_API_KEY, SAMPLE_CONVERSATIONS
 from src.db import get_connection
-from src.load_locomo import apply_schema
+from src.dataset.load import apply_schema
 
 EMBED_BATCH_SIZE = 100
 WINDOW_SIZE = 5

@@ -81,7 +81,7 @@ def save_cache(conversation_id: str, cache: dict) -> None:
 def run_questions(conn, client: Anthropic, conversation_id: str, questions) -> None:
     """questions: iterable of (qa_id, question, category) to answer for this conversation.
     Shared by the full per-conversation run and the stratified sample runner
-    (src/run_sample.py) so both write to the same cache format.
+    (src/dataset/sample.py) so both write to the same cache format.
     """
     transcript = build_transcript(conn, conversation_id)
     cache = load_cache(conversation_id)

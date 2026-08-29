@@ -8,8 +8,8 @@ carries a finding; this is the raw material behind it.
 **Regenerate any table here** — free, reads only the caches in `runs/`:
 
 ```bash
-python -m src.report_results               # all tables
-python -m src.report_results --section cost
+python -m src.evaluate.report_results               # all tables
+python -m src.evaluate.report_results --section cost
 ```
 
 Every row is the same 40 questions (10 per category, 5 conversations), the same answering model

@@ -2,7 +2,7 @@
 answer with the same frozen model and prompt as every other arm. Search is
 scoped to the question's own conversation.
 
-Runs three chunk granularities: turn, session, window (see embed.py).
+Runs three chunk granularities: turn, session, window (see src/ingest/chunks.py).
 
 Cache: runs/arm_b/<granularity>/k<N>/<conversation_id>.json, one folder per k.
 """
@@ -12,7 +12,7 @@ import time
 from anthropic import Anthropic
 from openai import OpenAI
 
-from src.arm_a import ANSWER_STYLE_REMINDER, SYSTEM_PROMPT
+from src.arms.arm_a import ANSWER_STYLE_REMINDER, SYSTEM_PROMPT
 from src.cache_io import load_json_cache, save_json_cache
 from src.config import (
     ANSWERING_MODEL,
@@ -23,8 +23,8 @@ from src.config import (
     RUNS_DIR,
 )
 from src.db import get_connection
-from src.embed import normalize
-from src.run_sample import select_stratified_sample
+from src.ingest.chunks import normalize
+from src.dataset.sample import select_stratified_sample
 
 GRANULARITIES = ("turn", "session", "window")
 

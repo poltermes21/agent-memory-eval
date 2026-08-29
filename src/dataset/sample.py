@@ -9,7 +9,7 @@ from collections import defaultdict
 
 from anthropic import Anthropic
 
-from src.arm_a import run_questions
+from src.arms.arm_a import run_questions
 from src.config import ANTHROPIC_API_KEY, SAMPLE_CONVERSATIONS, SAMPLE_PER_CATEGORY
 from src.db import get_connection
 

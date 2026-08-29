@@ -12,10 +12,10 @@ from collections import defaultdict
 
 from openai import OpenAI
 
-from src.arm_b import embed_query, vector_literal
+from src.arms.arm_b import embed_query, vector_literal
 from src.config import ARM_C_TOP_K, OPENAI_API_KEY
 from src.db import get_connection
-from src.run_sample import select_stratified_sample
+from src.dataset.sample import select_stratified_sample
 
 CATEGORY_NAMES = {1: "multi-hop", 2: "temporal", 3: "open-domain", 4: "single-hop"}
 

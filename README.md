@@ -58,30 +58,32 @@ cp .env.example .env          # add ANTHROPIC_API_KEY and OPENAI_API_KEY
 docker compose up -d          # Postgres 16 + pgvector, Neo4j 5 Community
 pip install -r requirements.txt
 
-python -m src.fetch_locomo    # downloads data/raw/locomo10.json (CC BY-NC, not vendored)
-python -m src.load_locomo     # -> raw_turns, qa_pairs
+python -m src.dataset.fetch                      # downloads data/raw/locomo10.json (CC BY-NC)
+python -m src.dataset.load                       # -> raw_turns, qa_pairs
 
-python -m src.arm_a                                       # full context
-python -m src.embed && python -m src.arm_b                # RAG over chunks, 3 granularities
-python -m src.extract_facts && python -m src.arm_c        # RAG over distilled facts
-python -m src.extract_graph_facts                         # Arm D's own extraction
-python -m src.build_graph --reset                         # graph_facts -> Neo4j ($0, no LLM)
-python -m src.arm_d                                       # RAG over the graph
-python -m src.arm_d --hydrate 2                           # raw-turn hydration ablation
+python -m src.arms.arm_a                         # full context
+python -m src.ingest.chunks                      # chunk + embed, 3 granularities
+python -m src.arms.arm_b                         # RAG over chunks
+python -m src.ingest.facts                       # flat triple extraction
+python -m src.arms.arm_c                         # RAG over distilled facts
+python -m src.ingest.graph_facts                 # Arm D's own extraction
+python -m src.ingest.graph --reset               # graph_facts -> Neo4j ($0, no LLM)
+python -m src.arms.arm_d                         # RAG over the graph
+python -m src.arms.arm_d --hydrate 2             # raw-turn hydration ablation
 
-python -m src.judge --arm arm_a                           # both rubrics, per arm
-python -m src.judge --arm arm_b --granularity window --top-k 20
-python -m src.judge --arm arm_c --top-k 10
-python -m src.judge --arm arm_d --hydrate 2
+python -m src.evaluate.judge --arm arm_a         # both rubrics, per arm
+python -m src.evaluate.judge --arm arm_b --granularity window --top-k 20
+python -m src.evaluate.judge --arm arm_c --top-k 10
+python -m src.evaluate.judge --arm arm_d --hydrate 2
 ```
 
 Useful extras:
 
 ```bash
-python -m src.recall_sweep --hydrate 2   # retrieval quality, no answering/judging call ($0)
-python -m src.report_results             # regenerates every table in docs/ from runs/
-python -m src.report_cost                # Arm A token/cost breakdown, per conversation
-python -m pytest tests/ -q               # graph invalidation + embedding-norm tests
+python -m src.evaluate.recall_sweep --hydrate 2   # retrieval quality, no paid call ($0)
+python -m src.evaluate.report_results             # regenerates every table in docs/
+python -m src.evaluate.report_cost                # Arm A token/cost breakdown
+python -m pytest tests/ -q                        # graph invalidation + embedding-norm tests
 ```
 
 ### Cost discipline
@@ -90,7 +92,7 @@ Every runner **caches to disk per question and resumes**. A killed run re-pays f
 Caches are written atomically — a truncated JSON file once blocked a resume and forced a
 re-pay, hence `src/cache_io.py`.
 
-`src/recall_sweep.py` measures retrieval quality with **no answering or judging call at all**,
+`src/evaluate/recall_sweep.py` measures retrieval quality with **no answering or judging call at all**,
 which is how every rejected retrieval strategy was tested for free before spending anything.
 
 Total API spend for every number reported here: **~$10.09** ($6.14 answering, $3.95 judging),
@@ -126,22 +128,41 @@ accuracy numbers.
 
 ## Layout
 
+`src/` follows the pipeline: **dataset → ingest → arms → evaluate**, with the shared plumbing
+at the top level.
+
 ```
 src/
-  fetch_locomo.py  load_locomo.py     dataset download + raw_turns / qa_pairs
-  run_sample.py                       the frozen stratified 40-question sample
-  arm_a.py                            full context
-  embed.py         arm_b.py           chunking + embeddings, RAG over chunks
-  extract_facts.py arm_c.py           flat triple extraction, RAG over facts
-  extract_graph_facts.py              Arm D's own graph-native extraction
-  build_graph.py   graph_db.py arm_d.py   graph_facts -> Neo4j, RAG over the graph
-  judge.py                            both rubrics, cached per question
-  recall_sweep.py                     free retrieval-quality experiments
-  report_results.py                   regenerates the tables in docs/ from runs/
-  report_cost.py   cache_io.py  config.py  db.py
-db/schema.sql                         every table
-tests/                                graph invalidation, embedding unit norm
-runs/                                 cached answers + verdicts (gitignored)
+  config.py                   frozen decisions, retrieval budgets, model pricing
+  db.py  graph_db.py          Postgres and Neo4j connections
+  cache_io.py                 atomic resume caches (a killed run re-pays for nothing)
+
+  dataset/                    get the corpus in
+    fetch.py                  download locomo10.json
+    load.py                   -> raw_turns, qa_pairs
+    sample.py                 the frozen stratified 40-question sample
+
+  ingest/                     build each arm's memory
+    chunks.py                 turn / session / window chunks + embeddings   (Arm B)
+    facts.py                  flat triple extraction                        (Arm C)
+    graph_facts.py            graph-native extraction                       (Arm D)
+    graph.py                  graph_facts -> Neo4j, $0, no LLM              (Arm D)
+
+  arms/                       answer the questions
+    arm_a.py                  full context
+    arm_b.py                  RAG over chunks
+    arm_c.py                  RAG over distilled facts
+    arm_d.py                  RAG over the graph (+ hydration ablation)
+
+  evaluate/                   score and report
+    judge.py                  both rubrics, cached per question
+    recall_sweep.py           free retrieval-quality experiments
+    report_results.py         regenerates the tables in docs/ from runs/
+    report_cost.py            Arm A token/cost breakdown
+
+db/schema.sql                 every table
+tests/                        graph invalidation, embedding unit norm
+runs/                         cached answers + verdicts (gitignored)
 ```
 
 ## Documentation

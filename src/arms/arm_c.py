@@ -1,4 +1,4 @@
-"""Arm C -- RAG over LLM-distilled facts (src/extract_facts.py).
+"""Arm C -- RAG over LLM-distilled facts (src/ingest/facts.py).
 
 Retrieval is deliberately IDENTICAL to Arm B's, so B-vs-C isolates one
 variable: raw chunk vs distilled fact. Do not change retrieval here without
@@ -14,7 +14,7 @@ import time
 from anthropic import Anthropic
 from openai import OpenAI
 
-from src.arm_a import ANSWER_STYLE_REMINDER, SYSTEM_PROMPT
+from src.arms.arm_a import ANSWER_STYLE_REMINDER, SYSTEM_PROMPT
 from src.config import (
     ANSWERING_MODEL,
     ANTHROPIC_API_KEY,
@@ -24,12 +24,12 @@ from src.config import (
     RUNS_DIR,
     SAMPLE_CONVERSATIONS,
 )
-from src.arm_b import embed_query, vector_literal
+from src.arms.arm_b import embed_query, vector_literal
 from src.cache_io import load_json_cache, save_json_cache
 from src.db import get_connection
-from src.embed import EMBED_BATCH_SIZE, embed_batch, normalize
-from src.load_locomo import apply_schema
-from src.run_sample import select_stratified_sample
+from src.ingest.chunks import EMBED_BATCH_SIZE, embed_batch, normalize
+from src.dataset.load import apply_schema
+from src.dataset.sample import select_stratified_sample
 
 
 def embed_text_for_fact(subject: str, predicate: str, obj: str, fact: str) -> str:

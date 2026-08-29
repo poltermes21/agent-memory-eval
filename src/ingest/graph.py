@@ -27,7 +27,7 @@ def normalize_predicate(predicate: str) -> str:
 # Single-valued relations only: a later, different object REPLACES the earlier
 # one. Everything else accumulates and must never auto-invalidate -- "own" is
 # absent deliberately (a person owns several things at once).
-# tests/test_build_graph.py asserts every entry survives normalize_predicate().
+# tests/test_graph.py asserts every entry survives normalize_predicate().
 INVALIDATING_PREDICATES = frozenset({
     "live_in", "live_at", "live_near", "move_to", "reside_in", "relocate_to",
     "be_located_in", "be_located",

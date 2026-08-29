@@ -1,7 +1,7 @@
 """Neo4j connection helper for Arm D.
 
 Separate from src/db.py: the graph lives in its own container, and is a
-projection of `graph_facts` that src/build_graph.py rebuilds for $0.
+projection of `graph_facts` that src/ingest/graph.py rebuilds for $0.
 """
 import logging
 

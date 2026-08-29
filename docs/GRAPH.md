@@ -96,7 +96,7 @@ Inspecting why put the blame on the flat triples themselves, not on retrieval:
 
 Fixing those requires extraction that thinks in nodes and relations from the start — which is a
 *different task* from Arm C's flat triples, not a superset of it. So Arm D got its own
-extraction pipeline (`src/extract_graph_facts.py` → `graph_facts` table), with three changes:
+extraction pipeline (`src/ingest/graph_facts.py` → `graph_facts` table), with three changes:
 
 | change | why |
 |---|---|
