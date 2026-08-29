@@ -1,10 +1,9 @@
-"""Stratified reference sample for Arm A: SAMPLE_PER_CATEGORY questions per
-category (1-4, adversarial excluded), spread round-robin across
-SAMPLE_CONVERSATIONS. This is the fixed subset all arms (A-D) will reuse for
-the controlled comparison -- see config.py for why it must stay fixed.
+"""The frozen stratified sample: SAMPLE_PER_CATEGORY questions per category (1-4,
+adversarial excluded), round-robin across SAMPLE_CONVERSATIONS. Every arm reuses
+it unchanged.
 
-Answers land in the same runs/arm_a/<conversation_id>.json cache as a full
-run, so this and a later full run never duplicate work.
+Answers land in the same runs/arm_a/ cache as a full run, so the two never
+duplicate work.
 """
 from collections import defaultdict
 

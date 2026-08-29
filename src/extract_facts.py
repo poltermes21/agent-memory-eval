@@ -1,15 +1,9 @@
-"""Shared extraction step for Arms C and D (CLAUDE.md "Why extraction is shared").
-Runs once, per session, over the fixed SAMPLE_CONVERSATIONS subset -- both arms
-read this same facts table unmodified, so any accuracy difference between them
-is attributable to retrieval architecture, not extraction noise.
+"""Arm C's extraction: flat subject/predicate/object triples plus the original
+sentence, into `facts`. FROZEN -- the shared-extraction Arm D numbers were
+computed from this table and are still reported.
 
-Extraction is per-session, not per-turn: a single turn often can't resolve
-pronouns ("she", "my sister") on its own, but the whole session usually can
-(Level 1 entity resolution -- see db/schema.sql and project memory for why
-this is deliberately not solved across session boundaries yet).
-
-Uses structured outputs (output_config.format) so the response is guaranteed
-valid JSON matching FACTS_SCHEMA -- no "hope it parses" step.
+Per-session, not per-turn: a turn often cannot resolve its own pronouns.
+Coreference is not resolved across session boundaries.
 """
 import argparse
 import hashlib
@@ -72,7 +66,7 @@ FACTS_SCHEMA = {
 }
 
 
-def build_session_transcript(conn, session_id: str) -> tuple[str, str]:
+def build_session_transcript(conn, session_id: str) -> tuple[str, str, set[str]]:
     rows = conn.execute(
         """
         SELECT turn_id, session_date, speaker, text
@@ -91,7 +85,7 @@ def fact_key(subject: str, predicate: str, obj: str, source_turn_id: str) -> str
     return hashlib.sha256(normalized.encode()).hexdigest()
 
 
-def extract_session(client: Anthropic, session_transcript: str, session_date: str) -> list[dict]:
+def extract_session(client: Anthropic, session_transcript: str, session_date: str) -> tuple[list[dict], int, int]:
     response = client.messages.create(
         model=ANSWERING_MODEL,
         max_tokens=4000,
@@ -105,12 +99,10 @@ def extract_session(client: Anthropic, session_transcript: str, session_date: st
 
 
 def already_extracted_session_ids(conn, conversation_id: str) -> set[str]:
-    """Sessions that already have at least one extracted fact.
+    """Sessions with at least one extracted fact.
 
-    Row-level idempotency (ON CONFLICT on fact_key) stops duplicate rows, but it
-    does NOT stop the billed API call -- without this skip, a re-run after a crash
-    re-pays for every session already done. Resolved through raw_turns so the
-    session_id matches exactly rather than parsing it out of source_turn_id.
+    ON CONFLICT stops duplicate rows but not the billed API call; this skip is
+    what makes a re-run after a crash free.
     """
     rows = conn.execute(
         """
@@ -140,7 +132,7 @@ def run_session(conn, client: Anthropic, conversation_id: str, session_id: str) 
     for f in facts:
         dia_id = f["source_turn_id"]
         if dia_id not in dia_ids:
-            skipped += 1  # model cited a turn that doesn't exist in this session -- drop it, don't guess
+            skipped += 1  # cited a turn not in this session; drop rather than guess
             continue
         source_turn_id = f"{conversation_id}:{dia_id}"
         key = fact_key(f["subject"], f["predicate"], f["object"], source_turn_id)

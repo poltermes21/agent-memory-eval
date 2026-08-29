@@ -1,29 +1,14 @@
-"""Arm C -- distilled-fact memory. Same retrieval mechanism as Arm B (exact
-sequential-scan cosine, top-k, no ANN index) and the same frozen ANSWERING_MODEL
-and prompt, over the shared extracted facts (src/extract_facts.py) instead of
-raw text chunks.
+"""Arm C -- RAG over LLM-distilled facts (src/extract_facts.py).
 
-This is a deliberate deviation from CLAUDE.md's "full-text search or text-to-SQL"
-for Arm C -- see config.py ARM_C_TOP_K for the measured reason. Keeping retrieval
-identical to Arm B means the B-vs-C comparison isolates exactly one variable:
-distilled facts vs raw chunks, which is the real production fork (Mem0 stores
-facts; classic RAG stores chunks).
+Retrieval is deliberately IDENTICAL to Arm B's, so B-vs-C isolates one
+variable: raw chunk vs distilled fact. Do not change retrieval here without
+changing Arm B too.
 
-Temporal invalidation (valid_to) is deliberately NOT applied: measured on this
-data, the standard rule (same subject + predicate, different object) would
-invalidate 780 of 1798 facts, almost all of them non-contradictions
-("joanna feels X" across 12 different feelings). One sample question
-(conv-49:qa:1, "what things did Evan have broken" -> old AND new Prius) would
-become unanswerable under it. See project memory.
+Temporal invalidation is deliberately not applied in this arm (docs/DESIGN.md).
 
-Ingestion cost for this arm is NOT just the embeddings below -- it inherits the
-LLM extraction cost from extract_facts.py ($2.47), which is the metric CLAUDE.md
-asks for and which fact-based memory systems typically omit from their numbers.
-
-Cache: runs/arm_c/k<N>/<conversation_id>.json, mirroring runs/arm_b/.
+Cache: runs/arm_c/k<N>/<conversation_id>.json.
 """
 import argparse
-import json
 import time
 
 from anthropic import Anthropic
@@ -34,7 +19,6 @@ from src.config import (
     ANSWERING_MODEL,
     ANTHROPIC_API_KEY,
     ARM_C_TOP_K,
-    EMBEDDING_MODEL,
     EMBEDDING_MODEL_PRICE_PER_M,
     OPENAI_API_KEY,
     RUNS_DIR,
@@ -49,9 +33,7 @@ from src.run_sample import select_stratified_sample
 
 
 def embed_text_for_fact(subject: str, predicate: str, obj: str, fact: str) -> str:
-    # Embed the triple alongside the sentence: the sentence carries the nuance, the
-    # triple carries the canonical entity name, which helps a question naming the
-    # entity match facts whose sentence phrases it differently.
+    # Triple carries the canonical entity name, sentence carries the nuance.
     return f"{subject} {predicate} {obj}. {fact}"
 
 
@@ -130,8 +112,7 @@ def build_context(facts) -> str:
 
 
 def compute_recall(conversation_id: str, evidence_dia_ids: list[str], facts):
-    # Same definition as Arm B: did retrieval surface the turn(s) the dataset marks
-    # as containing the answer? Each fact cites exactly one source turn.
+    # Same definition as every other arm: did retrieval surface the evidence turns?
     if not evidence_dia_ids:
         return None
     evidence_turn_ids = [f"{conversation_id}:{d}" for d in evidence_dia_ids]

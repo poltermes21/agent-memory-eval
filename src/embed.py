@@ -1,20 +1,8 @@
-"""Arm B ingestion: chunk turns three ways (per-turn, per-session, sliding
-window of turns), embed each chunk via OpenAI text-embedding-3-small,
-normalize to unit norm, store in the shared Postgres embeddings table
-(db/schema.sql).
+"""Arm B ingestion: chunk turns three ways, embed, normalize to unit norm, store.
 
-Turn and session are CLAUDE.md's deliberate bookends -- they measure the span
-of the granularity design variable, not a production recommendation. Window
-(WINDOW_SIZE consecutive turns, WINDOW_STRIDE apart, so consecutive windows
-overlap) approximates what production RAG systems actually ship: 2026
-industry practice favors grouped chunks (~512 tokens) with 10-15% overlap
-over single-utterance or whole-document chunking. Windows never cross session
-boundaries -- grouping turns from two different days into one chunk has no
-real analogue in how conversations are read.
-
-Scoped to SAMPLE_CONVERSATIONS only, the same fixed subset as Arm A, so the
-arm comparison stays controlled. Retrieval (not ingestion) is an exact
-sequential scan -- see CLAUDE.md "Stack": no ANN index, ever.
+Turn and session bracket the granularity variable; neither is a production
+recommendation. Window (WINDOW_SIZE turns, WINDOW_STRIDE apart, overlapping)
+approximates what production RAG ships. Windows never cross session boundaries.
 """
 import argparse
 import math

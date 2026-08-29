@@ -1,25 +1,12 @@
-"""Arm B -- vector RAG. Embed the question, exact sequential-scan cosine
-similarity against the embeddings table (scoped to the question's own
-conversation -- a real memory system searches one user's history, not
-everyone's), take the top ARM_B_TOP_K chunks, answer with the same frozen
-ANSWERING_MODEL and prompt style as Arm A -- only the retrieval architecture
-differs, per CLAUDE.md's controlled-comparison design.
+"""Arm B -- RAG over raw text chunks: embed the question, exact cosine top-k,
+answer with the same frozen model and prompt as every other arm. Search is
+scoped to the question's own conversation.
 
-Runs all three chunk granularities ('turn', 'session', 'window' -- see
-embed.py for what each means) over the same question set Arm A used
-(src.run_sample.select_stratified_sample), so all three numbers (accuracy,
-cost, recall) are directly comparable across arms.
+Runs three chunk granularities: turn, session, window (see embed.py).
 
-Retrieval recall (CLAUDE.md metric, independent of judge/answering model) is
-computed here: does the retrieved set cover the qa_pairs.evidence turns?
-Arm A had no retrieval step to measure this on.
-
-Cache: runs/arm_b/<granularity>/k<N>/<conversation_id>.json, one folder per
-top-k value (default ARM_B_TOP_K included), so a k-sweep (recall/accuracy/cost
-vs k) never collides with or re-pays for another point on the curve.
+Cache: runs/arm_b/<granularity>/k<N>/<conversation_id>.json, one folder per k.
 """
 import argparse
-import json
 import time
 
 from anthropic import Anthropic

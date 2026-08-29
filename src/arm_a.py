@@ -1,14 +1,11 @@
-"""Arm A -- full context. No ingestion, no retrieval: every turn of a conversation
-goes in the prompt, the model answers each question against it directly. Reference
-point for the accuracy ceiling / efficiency floor (CLAUDE.md "Arms").
+"""Arm A -- full context: the whole transcript goes in the prompt, no retrieval.
 
-Answers are cached to disk per conversation under runs/arm_a/, one JSON file per
-conversation_id, keyed by qa_id. Re-running skips qa_ids already answered, so the
-judge (step 2) can be re-run against these answers without re-paying for them
-(CLAUDE.md: "Cache ingestion output to disk per arm. QA gets re-run dozens of times").
+SYSTEM_PROMPT and ANSWER_STYLE_REMINDER are imported by every other arm. Change
+them here and every arm's cached answers stop being comparable.
+
+Cache: runs/arm_a/<conversation_id>.json.
 """
 import argparse
-import json
 
 from anthropic import Anthropic
 

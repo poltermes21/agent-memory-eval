@@ -1,12 +1,8 @@
 """Atomic JSON cache read/write, shared by every arm and the judge.
 
-These caches hold already-paid-for API results, and every runner saves after each
-question so a crash loses at most one answer. But a plain path.write_text() is not
-atomic: a process killed mid-write leaves a truncated or empty file, and the next
-run then dies in json.load() -- blocking resume entirely and forcing a re-pay of
-work that was already done. Happened 2026-08-12 (runs/arm_c/k20/conv-49.json, 0
-bytes). Write to a temp file in the same directory, then os.replace(), which is
-atomic on POSIX: readers see either the old complete file or the new complete one.
+These hold already-paid-for API results. write_text() is not atomic: a process
+killed mid-write leaves a truncated file that blocks the next resume and forces
+a re-pay. Write to a temp file, then os.replace().
 """
 import json
 import os

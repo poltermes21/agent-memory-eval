@@ -1,7 +1,8 @@
-"""CLAUDE.md: "Embeddings are normalised on write regardless of what the
-provider returns, with a test asserting unit norm -- if a provider silently
-changes behaviour, the test fails instead of the accuracy numbers drifting
-mysteriously."
+"""Embeddings are normalised on write regardless of what the provider returns.
+
+This test asserts unit norm so that if a provider silently changes its
+behaviour, a test fails loudly instead of the accuracy numbers drifting
+mysteriously across arms.
 """
 import math
 

@@ -1,6 +1,6 @@
 """Download data/raw/locomo10.json from the upstream repo.
 
-Not vendored in git: the dataset is CC BY-NC. See HANDOFF.md decision log.
+Not vendored in git: the dataset is CC BY-NC (see README "Dataset").
 Idempotent — skips the download if the file already exists, unless --force.
 """
 import argparse

@@ -1,7 +1,7 @@
-"""Sum tokens and cost from the runs/arm_a/ cache. Answers to CLAUDE.md's
-"Tokens per query" and "Ingestion cost" metrics -- both require this number,
-and neither is meaningful as a single global figure, so this reports totals,
-per-conversation, and per-category.
+"""Arm A token and cost breakdown, from the runs/arm_a/ cache.
+
+Reports totals, per-conversation and per-category rather than one global
+figure. For the cross-arm view, use src/report_results.py.
 """
 import argparse
 import json

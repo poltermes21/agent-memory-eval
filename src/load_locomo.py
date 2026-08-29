@@ -1,12 +1,10 @@
-"""Parse data/raw/locomo10.json into raw_turns and qa_pairs (db/schema.sql).
+"""Parse data/raw/locomo10.json into raw_turns and qa_pairs.
 
-Idempotent: turn_id / qa_id are stable natural keys derived from the source JSON
-(conversation sample_id + dia_id / qa index), so re-running never duplicates rows —
-ON CONFLICT DO NOTHING.
+Idempotent: turn_id / qa_id are stable keys derived from the source JSON, so
+re-running never duplicates rows.
 
-Turns that carry an image (img_url / blip_caption / query) are loaded with just their
-text, same as any other turn. CLAUDE.md's raw_turns schema is text-only (speaker, text);
-image fields are dropped, not stored elsewhere -- out of scope for this benchmark.
+Turns carrying an image are loaded with just their text; image fields are
+dropped, not stored elsewhere.
 """
 import argparse
 import json
